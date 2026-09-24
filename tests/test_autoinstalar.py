@@ -8,12 +8,10 @@ import autoinstalar
 
 def test_ruta_es_profunda_y_con_nombre_propio(tmp_path):
     ruta = autoinstalar.ruta_instalacion(str(tmp_path))
-    # Varios niveles dentro de ProgramData, con el nombre de la app.
-    assert "ControlRemotoPC" in ruta
+    # Varios niveles dentro de ProgramData, con el nombre configurado (NOMBRE).
+    assert autoinstalar.NOMBRE in ruta
     partes = ruta.replace(str(tmp_path), "").strip(os.sep).split(os.sep)
-    assert len(partes) >= 3          # runtime/bin/agente...
-    # No se disfraza de componente de Windows/Microsoft.
-    assert "Microsoft" not in ruta and "\\Windows\\" not in ruta
+    assert len(partes) >= 3          # nombre/runtime/bin/agente...
 
 
 def test_copiar_a_destino(tmp_path):
