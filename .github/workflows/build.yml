@@ -14,9 +14,13 @@ jobs:
       - run: pip install pyinstaller
       - run: pyinstaller --onefile --windowed --name Agente agente.py
       - run: pyinstaller --onefile --windowed --name Consola consola.py
+      - run: pyinstaller --onefile --windowed --name AgenteNube agente_nube.py
+      - run: pyinstaller --onefile --windowed --name ConsolaNube consola_nube.py
       - uses: actions/upload-artifact@v4
         with:
           name: control-remoto-exe
           path: |
             dist/Agente.exe
             dist/Consola.exe
+            dist/AgenteNube.exe
+            dist/ConsolaNube.exe
