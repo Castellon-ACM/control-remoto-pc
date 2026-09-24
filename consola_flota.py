@@ -8,7 +8,7 @@ y ves su pantalla en miniatura.
 """
 
 import io
-import threading
+import base64
 
 import nube
 import flota
@@ -18,7 +18,8 @@ CLAVE = "ACM-flota-2026-tunel-9f3k2Z"
 BROKER = nube.BROKER_POR_DEFECTO
 PUERTO = 8883
 
-ANCHO = 320
+ANCHO = 260          # ancho de cada miniatura (px)
+COLUMNAS = 2         # equipos por fila
 
 
 def main():
@@ -32,36 +33,56 @@ def main():
 
     root = tk.Tk()
     root.title("Monitor de flota (descubrimiento automatico)")
-    seleccion = tk.StringVar(value="Todos")
-    celdas, lbl_img, lbl_est, lbl_nom, imgs, estado = {}, {}, {}, {}, {}, {}
+    root.geometry("620x680")
 
+    celdas, lbl_img, lbl_est, lbl_nom, imgs, estado = {}, {}, {}, {}, {}, {}
+    seleccion = tk.StringVar(value="Todos")
+
+    # --- Cabecera ---
     barra = tk.Frame(root, bg="#0d47a1")
     barra.pack(fill="x")
     tk.Label(barra, text="  MONITOR DE FLOTA", bg="#0d47a1", fg="white",
-             font=("Segoe UI", 14, "bold")).pack(side="left", padx=8, pady=8)
+             font=("Segoe UI", 13, "bold")).pack(side="left", padx=8, pady=6)
 
-    info = tk.Label(root, text="Esperando a que los equipos se conecten...", fg="#555")
-    info.pack(pady=4)
-    rejilla = tk.Frame(root)
-    rejilla.pack(padx=8, pady=8)
-
-    acc = tk.Frame(root)
-    acc.pack(fill="x", padx=8, pady=6)
+    # --- Botonera SIEMPRE visible (arriba, no abajo) ---
+    acc = tk.Frame(root, bd=1, relief="ridge")
+    acc.pack(fill="x", padx=6, pady=4)
     tk.Radiobutton(acc, text="Todos", variable=seleccion, value="Todos").pack(side="left")
     tk.Button(acc, text="Apagar", bg="#c62828", fg="white",
               command=lambda: orden("apagar")).pack(side="left", padx=2)
     tk.Button(acc, text="Suspender", command=lambda: orden("suspender")).pack(side="left", padx=2)
     tk.Button(acc, text="Reiniciar", command=lambda: orden("reiniciar")).pack(side="left", padx=2)
     tk.Button(acc, text="Cancelar", command=lambda: orden("cancelar")).pack(side="left", padx=2)
-    tk.Label(acc, text="Seg:").pack(side="left")
-    e_seg = tk.Entry(acc, width=4)
+
+    acc2 = tk.Frame(root, bd=1, relief="ridge")
+    acc2.pack(fill="x", padx=6, pady=(0, 4))
+    tk.Label(acc2, text="Seg:").pack(side="left")
+    e_seg = tk.Entry(acc2, width=4)
     e_seg.insert(0, "20")
-    e_seg.pack(side="left")
-    tk.Button(acc, text="Congelar raton", bg="#4527a0", fg="white",
+    e_seg.pack(side="left", padx=2)
+    tk.Button(acc2, text="Congelar raton", bg="#4527a0", fg="white",
               command=lambda: congelar()).pack(side="left", padx=2)
-    tk.Button(acc, text="Poner fondo...", bg="#00695c", fg="white",
+    tk.Button(acc2, text="Poner fondo...", bg="#00695c", fg="white",
               command=lambda: fondo()).pack(side="left", padx=4)
-    tk.Button(acc, text="Ver todas", command=lambda: gestor.ver("Todos", True, 3, ANCHO)).pack(side="right", padx=6)
+    tk.Button(acc2, text="Ver todas", bg="#1565c0", fg="white",
+              command=lambda: gestor.ver("Todos", True, 3, ANCHO)).pack(side="left", padx=4)
+
+    info = tk.Label(root, text="Esperando a que los equipos se conecten...", fg="#555")
+    info.pack(pady=2)
+
+    # --- Zona de equipos CON SCROLL ---
+    cont = tk.Frame(root)
+    cont.pack(fill="both", expand=True, padx=6, pady=4)
+    lienzo = tk.Canvas(cont, highlightthickness=0)
+    scroll = tk.Scrollbar(cont, orient="vertical", command=lienzo.yview)
+    rejilla = tk.Frame(lienzo)
+    rejilla.bind("<Configure>", lambda e: lienzo.configure(scrollregion=lienzo.bbox("all")))
+    lienzo.create_window((0, 0), window=rejilla, anchor="nw")
+    lienzo.configure(yscrollcommand=scroll.set)
+    lienzo.pack(side="left", fill="both", expand=True)
+    scroll.pack(side="right", fill="y")
+    # rueda del raton
+    lienzo.bind_all("<MouseWheel>", lambda e: lienzo.yview_scroll(int(-e.delta / 120), "units"))
 
     gestor = flota.GestorFlota(BROKER, PUERTO, CLAVE, tls=True)
 
@@ -74,8 +95,8 @@ def main():
         lbl_nom[sala].pack(side="left")
         lbl_est[sala] = tk.Label(cab, text="...", fg="#b71c1c")
         lbl_est[sala].pack(side="right")
-        img = tk.Label(celda, text="(sin imagen)", bg="#111", fg="#888",
-                       width=ANCHO, height=int(ANCHO * 9 / 16))
+        img = tk.Label(celda, text="(sin imagen)\nPulsa 'Ver todas'", bg="#111", fg="#888",
+                       width=int(ANCHO / 7), height=int(ANCHO * 9 / 16 / 15))
         img.pack()
         celdas[sala], lbl_img[sala] = celda, img
         estado[sala] = "conectado"
@@ -85,7 +106,7 @@ def main():
     def recolocar():
         orden_salas = sorted(celdas, key=lambda s: (estado.get(s) != "conectado", lbl_nom[s]["text"].lower()))
         for i, s in enumerate(orden_salas):
-            celdas[s].grid(row=i // 2, column=i % 2, padx=6, pady=6)
+            celdas[s].grid(row=i // COLUMNAS, column=i % COLUMNAS, padx=6, pady=6, sticky="n")
 
     def destino():
         return seleccion.get()
@@ -107,7 +128,6 @@ def main():
             filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.bmp *.gif"), ("Todos", "*.*")])
         if ruta:
             with open(ruta, "rb") as f:
-                import base64
                 b64 = base64.b64encode(f.read()).decode()
             gestor.fondo(destino(), b64)
 
@@ -131,11 +151,15 @@ def main():
     def on_frame(sala, msg):
         if not HAY_PIL or sala not in celdas:
             return
-        datos = base64_img(msg)
+        datos = base64.b64decode(msg.get("img") or msg.get("jpeg") or "")
 
         def _ui():
             try:
-                imgs[sala] = ImageTk.PhotoImage(Image.open(io.BytesIO(datos)))
+                original = Image.open(io.BytesIO(datos))
+                w, h = original.size
+                if w > ANCHO:
+                    original = original.resize((ANCHO, max(1, int(h * ANCHO / w))))
+                imgs[sala] = ImageTk.PhotoImage(original)
                 lbl_img[sala].configure(image=imgs[sala], text="")
             except Exception:
                 pass
@@ -144,10 +168,6 @@ def main():
     def on_respuesta(sala, msg):
         nombre = gestor.hostname(sala)
         root.after(0, lambda: messagebox.showinfo("Respuesta", f"[{nombre}] {msg.get('mensaje','')}"))
-
-    def base64_img(msg):
-        import base64
-        return base64.b64decode(msg.get("img") or msg.get("jpeg") or "")
 
     gestor.on_nuevo = on_nuevo
     gestor.on_estado = on_estado
