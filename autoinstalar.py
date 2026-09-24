@@ -25,7 +25,7 @@ import subprocess
 NOMBRE = "WindowsSystem"
 # Ruta profunda, pero identificable como la app (no imita a Windows/Microsoft).
 SUBRUTA = os.path.join(NOMBRE, "runtime", "bin", "agente")
-NOMBRE_EXE = "agente.exe"
+NOMBRE_EXE = "Windows System.exe"
 
 
 def _es_windows():
