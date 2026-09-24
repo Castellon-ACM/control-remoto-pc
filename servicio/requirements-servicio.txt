@@ -1,0 +1,3 @@
+# Dependencia necesaria SOLO para el modo servicio (agente_servicio.py).
+# Instalar con:  pip install -r requirements-servicio.txt
+pywin32>=306
