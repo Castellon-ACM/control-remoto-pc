@@ -84,17 +84,8 @@ def _realizar_instalacion(origen, base=None, winreg_mod=None):
 
 
 def _avisar(destino):
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            "Instalado correctamente.\n\nArrancara solo cada vez que enciendas "
-            "el equipo. Ya puedes borrar el archivo que descargaste.",
-            "Control Remoto PC", 0x40,
-        )
-    except Exception:
-        pass
-
+    # Instalacion silenciosa: no se muestra ningun mensaje.
+    return
 
 def instalar_si_hace_falta(base=None, relanzar=True):
     """Punto de entrada: instala la primera vez y devuelve un resumen."""
