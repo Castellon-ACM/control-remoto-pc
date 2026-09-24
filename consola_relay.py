@@ -31,6 +31,7 @@ class ClienteConsolaRelay:
         self._sock = None
         self._enviar_lock = threading.Lock()
         self._parar = threading.Event()
+        self.vivo = False          # True mientras el socket con el rele este abierto
         # Callbacks (los pone la ventana): reciben un dict de mensaje.
         self.on_frame = None       # fotograma de pantalla
         self.on_respuesta = None   # respuesta a una orden
@@ -41,6 +42,7 @@ class ClienteConsolaRelay:
         self._sock.settimeout(None)
         remoto.enviar_mensaje(self._sock, {"sala": self.sala, "rol": "consola"})
         self._parar.clear()
+        self.vivo = True
         threading.Thread(target=self._bucle_recibir, daemon=True).start()
         if self.on_estado:
             self.on_estado("conectado")
@@ -52,6 +54,7 @@ class ClienteConsolaRelay:
             except OSError:
                 msg = None
             if msg is None:
+                self.vivo = False
                 if self.on_estado:
                     self.on_estado("desconectado")
                 break
@@ -89,6 +92,7 @@ class ClienteConsolaRelay:
 
     def cerrar(self):
         self._parar.set()
+        self.vivo = False
         try:
             self._sock.close()
         except OSError:

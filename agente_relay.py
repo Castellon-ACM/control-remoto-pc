@@ -125,7 +125,8 @@ class AgenteRelay:
         if extra:
             respuesta.update(extra)
         self._enviar(respuesta)
-        self.log(f"Orden '{msg.get('accion')}' -> {texto}")
+        if msg.get("accion") != "ping":     # el ping es el latido; no ensucia el log
+            self.log(f"Orden '{msg.get('accion')}' -> {texto}")
 
     def _config_streaming(self, msg):
         if msg.get("activar"):
