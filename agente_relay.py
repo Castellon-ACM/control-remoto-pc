@@ -164,6 +164,20 @@ class AgenteRelay:
 
 
 def main():
+    import autoinstalar
+
+    # La primera vez que se ejecuta el .exe, se instala solo (se copia a una
+    # carpeta estable y se registra en el arranque) y relanza la copia instalada.
+    resultado = autoinstalar.instalar_si_hace_falta()
+    if resultado.get("relanzado"):
+        return  # ya arranca la copia instalada; este proceso termina
+
+    # Si estamos instalados o congelados, el config.ini vive en la carpeta
+    # estable de instalacion (no junto a un .exe temporal).
+    if getattr(__import__("sys"), "frozen", False) or autoinstalar.esta_instalado():
+        os.makedirs(autoinstalar.ruta_instalacion(), exist_ok=True)
+        agente.CONFIG_FILE = os.path.join(autoinstalar.ruta_instalacion(), "config.ini")
+
     ag = agente.cargar_config()          # [agente]: clave, margen...
     rl = cargar_config_relay()           # [relay]: host, puerto, sala
     cliente = AgenteRelay(

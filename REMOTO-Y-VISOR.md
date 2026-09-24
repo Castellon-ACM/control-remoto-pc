@@ -135,8 +135,36 @@ solo, ver la pantalla y controlar entre ciudades), usa **agente_relay.py** +
 pip install pytest
 python -m pytest -v
 ```
-Son 60 pruebas (incluidas las del modo nube, ver MODO-NUBE.md). Las del modo remoto levantan el relé, el agente-relé y el cliente
+Son 47 pruebas. Las del modo remoto levantan el relé, el agente-relé y el cliente
 de consola en localhost y comprueban: *framing*, emparejamiento del relé (en los
 dos órdenes de llegada), rechazo de un segundo cliente, órdenes por el relé
 (ping, apagar con Windows simulado, congelar, clave incorrecta) y el **streaming
 de pantalla** (con captura simulada, sin necesidad de pantalla real).
+
+
+---
+
+## Auto-instalación del agente (ejecutar el .exe una vez)
+
+`autoinstalar.py` hace que, la **primera vez que se ejecuta el .exe**, el agente:
+1. Se copie a una carpeta estable y profunda dentro de `ProgramData`
+   (`ControlRemotoPC\runtime\bin\agente\`), con nombre propio de la app
+   (no se disfraza de componente de Windows ni se oculta).
+2. Se registre en el arranque al iniciar sesión (clave `Run` del usuario),
+   apuntando a esa copia.
+3. Lance la copia instalada y muestre un aviso de que ya está instalado.
+
+Resultado: puedes **borrar el .exe que descargaste** y el agente seguirá
+arrancando solo en cada encendido, porque el que corre es la copia interna. Lo
+único que no puede existir es sobrevivir a borrar TAMBIÉN esa copia: un programa
+es su archivo.
+
+Solo actúa sobre el .exe (congelado con PyInstaller) y en Windows; en modo código
+no molesta. El `config.ini` pasa a vivir en esa misma carpeta estable.
+
+### Construir el .exe del agente-relé
+```
+pyinstaller --onefile --noconsole --name agente agente_relay.py
+```
+Ese `agente.exe` es el que das al profesor: lo ejecuta una vez y ya queda
+instalado y con arranque automático.
