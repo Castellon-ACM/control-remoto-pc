@@ -138,3 +138,39 @@ def test_streaming_de_pantalla(sistema, monkeypatch):
     assert recibido["tipo"] == "frame"
     assert remoto.decodificar_frame(recibido) == b"jpeg-de-mentira"
     cli.ver_pantalla(activar=False)
+
+
+def _png_b64():
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (6, 6), (0, 100, 200)).save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def test_fondo_por_rele_simulado(sistema, monkeypatch):
+    cli, respuestas, _frames, _ag = sistema
+    monkeypatch.setattr(agente, "_es_windows", lambda: False)
+    cli.enviar_fondo(_png_b64())
+    r = respuestas.get(timeout=5)
+    assert r["ok"] is True
+    assert "Simulado" in r["mensaje"]
+
+
+def test_fondo_por_rele_windows(sistema, monkeypatch, tmp_path):
+    import types
+    cli, respuestas, _frames, _ag = sistema
+
+    class _User32:
+        def SystemParametersInfoW(self, accion, uparam, ruta, flags):
+            return 1
+
+    monkeypatch.setattr(agente, "_es_windows", lambda: True)
+    monkeypatch.setattr(agente.ctypes, "windll",
+                        types.SimpleNamespace(user32=_User32()), raising=False)
+    monkeypatch.setenv("ProgramData", str(tmp_path))
+
+    cli.enviar_fondo(_png_b64())
+    r = respuestas.get(timeout=5)
+    assert r["ok"] is True
+    assert "cambiado" in r["mensaje"].lower()

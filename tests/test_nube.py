@@ -310,3 +310,61 @@ def test_agente_se_reconecta_si_cae_el_broker(broker):
         time.sleep(0.1)
     ag.parar()
     assert broker.subs.get(ag.canal.topic_agente) is not None
+
+
+# ---------------------------------------------------------------------------
+# Fondo de pantalla por el modo nube (la imagen viaja en trozos)
+# ---------------------------------------------------------------------------
+def _user32_falso(monkeypatch, tmp_path, llamadas):
+    import types
+
+    class _User32:
+        def SystemParametersInfoW(self, accion, uparam, ruta, flags):
+            llamadas.append((accion, ruta.value))
+            return 1
+
+    monkeypatch.setattr(agente, "_es_windows", lambda: True)
+    monkeypatch.setattr(agente.ctypes, "windll",
+                        types.SimpleNamespace(user32=_User32()), raising=False)
+    monkeypatch.setenv("ProgramData", str(tmp_path))
+
+
+def test_fondo_grande_en_varios_trozos(sistema, monkeypatch, tmp_path):
+    ag, con, colas, _ = sistema
+    llamadas = []
+    _user32_falso(monkeypatch, tmp_path, llamadas)
+    # PNG valido de ~650 KB (ruido): obliga a partirlo en varios trozos.
+    import os as _os
+    w, h = 800, 800
+    png = nube._png_paleta_332(w, h, _os.urandom(w * h))
+    b64 = base64.b64encode(png).decode()
+    assert len(b64) > 3 * nube.TAM_TROZO
+    con.enviar_fondo(b64)
+    r = colas["resp"].get(timeout=10)
+    assert r["ok"] and "cambiado" in r["mensaje"].lower()
+    assert llamadas and llamadas[0][0] == 20
+    carpeta = tmp_path / "ControlRemotoPC"
+    guardado = list(carpeta.iterdir())
+    assert len(guardado) == 1
+
+
+def test_fondo_sin_pillow_usa_el_archivo_tal_cual(monkeypatch, tmp_path):
+    import builtins
+    llamadas = []
+    _user32_falso(monkeypatch, tmp_path, llamadas)
+    real_import = builtins.__import__
+
+    def sin_pil(nombre, *a, **k):
+        if nombre == "PIL" or nombre.startswith("PIL."):
+            raise ImportError("sin Pillow")
+        return real_import(nombre, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", sin_pil)
+    png = nube.bgra_a_png(2, 2, bytes(16))
+    assert "cambiado" in agente.accion_fondo_pantalla(base64.b64encode(png).decode()).lower()
+    assert llamadas[0][1].endswith("fondo.png")
+    assert (tmp_path / "ControlRemotoPC" / "fondo.png").read_bytes() == png
+    # Algo que no es una imagen se rechaza sin tocar el fondo.
+    assert "no valida" in agente.accion_fondo_pantalla(
+        base64.b64encode(b"MZ ejecutable").decode()).lower()
+    assert len(llamadas) == 1
