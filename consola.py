@@ -36,9 +36,15 @@ INTERVALO_SONDEO = 5000  # milisegundos entre comprobaciones de estado
 # ---------------------------------------------------------------------------
 # Comunicacion con el agente
 # ---------------------------------------------------------------------------
-def enviar_orden(ip, puerto, clave, accion):
-    """Envia una orden al agente y devuelve (ok, mensaje)."""
+def enviar_orden(ip, puerto, clave, accion, extra=None):
+    """Envia una orden al agente y devuelve (ok, mensaje).
+
+    'extra' permite anadir campos adicionales al mensaje (por ejemplo
+    {"segundos": 20} para la orden de congelar el raton).
+    """
     mensaje = {"clave": clave, "accion": accion}
+    if extra:
+        mensaje.update(extra)
     try:
         with socket.create_connection((ip, int(puerto)), timeout=TIMEOUT_CONEXION) as s:
             s.sendall((json.dumps(mensaje) + "\n").encode("utf-8"))
@@ -202,6 +208,23 @@ class VentanaConsola:
             command=lambda: self.enviar("cancelar", confirmar=False),
         ).pack(side="left", padx=4)
 
+        # Congelar el raton durante los segundos indicados
+        raton = tk.Frame(root)
+        raton.pack(fill="x", padx=12, pady=(0, 12))
+        tk.Label(raton, text="Segundos:").pack(side="left")
+        self.e_segundos = tk.Entry(raton, width=6)
+        self.e_segundos.pack(side="left", padx=6)
+        self.e_segundos.insert(0, "20")
+        tk.Button(
+            raton, text="Congelar raton", width=16, bg="#4527a0", fg="white",
+            command=self.congelar_raton,
+        ).pack(side="left")
+        tk.Label(
+            raton,
+            text="(fija el raton en el equipo seleccionado; el teclado sigue activo)",
+            fg="#555555",
+        ).pack(side="left", padx=8)
+
         self.refrescar_tabla()
         self._programar_sondeo()
 
@@ -262,7 +285,7 @@ class VentanaConsola:
             self.refrescar_tabla()
 
     # -- acciones y estado -------------------------------------------------
-    def enviar(self, accion, confirmar=True):
+    def enviar(self, accion, confirmar=True, extra=None):
         idx = self._equipo_seleccionado()
         if idx is None:
             return
@@ -273,6 +296,7 @@ class VentanaConsola:
             "reiniciar": "REINICIAR",
             "suspender": "SUSPENDER",
             "cancelar": "cancelar el apagado de",
+            "congelar_raton": "CONGELAR EL RATON de",
         }
         if confirmar:
             if not messagebox.askyesno(
@@ -283,7 +307,7 @@ class VentanaConsola:
 
         def _tarea():
             ok, msg = enviar_orden(
-                eq["ip"], eq["puerto"], self._clave_actual(), accion
+                eq["ip"], eq["puerto"], self._clave_actual(), accion, extra
             )
             self.root.after(
                 0,
@@ -293,6 +317,18 @@ class VentanaConsola:
             )
 
         threading.Thread(target=_tarea, daemon=True).start()
+
+    def congelar_raton(self):
+        """Envia la orden de congelar el raton con los segundos indicados."""
+        texto = self.e_segundos.get().strip()
+        if not texto.isdigit() or int(texto) <= 0:
+            messagebox.showwarning(
+                "Dato no valido", "Pon los segundos como un numero mayor que 0."
+            )
+            return
+        self.enviar(
+            "congelar_raton", confirmar=True, extra={"segundos": int(texto)}
+        )
 
     def sondear(self):
         """Comprueba el estado de todos los equipos en segundo plano."""

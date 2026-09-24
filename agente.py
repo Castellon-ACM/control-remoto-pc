@@ -19,6 +19,8 @@ import json
 import subprocess
 import platform
 import os
+import time
+import ctypes
 import configparser
 from datetime import datetime
 
@@ -98,6 +100,88 @@ def accion_cancelar():
     return "Simulado: cancelar (no es Windows)."
 
 
+# Evita lanzar dos congelaciones a la vez.
+_raton_congelado = threading.Event()
+
+# Tope de seguridad: nunca se congela mas de este tiempo, pase lo que pase.
+CONGELAR_TOPE_SEGUNDOS = 300
+
+
+class _PUNTO(ctypes.Structure):
+    """Estructura POINT de Windows para leer la posicion del cursor."""
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+def accion_congelar_raton(segundos):
+    """Congela (fija) el cursor del raton durante 'segundos'.
+
+    Clava el cursor EN LA POSICION EN LA QUE ESTE en ese momento, asi que el
+    raton no se puede mover. El TECLADO SIGUE FUNCIONANDO (no se bloquea al
+    usuario) y el raton se libera SOLO al terminar el tiempo. Solo tiene efecto
+    en Windows y cuando el agente corre en la sesion del usuario (la ventana),
+    no como servicio de la Sesion 0.
+    """
+    if not _es_windows():
+        return "Simulado: congelar raton (no es Windows)."
+    try:
+        segundos = int(segundos)
+    except (TypeError, ValueError):
+        return "Parametro 'segundos' no valido."
+    if segundos <= 0:
+        return "Los segundos deben ser un numero mayor que 0."
+    if segundos > CONGELAR_TOPE_SEGUNDOS:
+        segundos = CONGELAR_TOPE_SEGUNDOS
+    if _raton_congelado.is_set():
+        return "El raton ya esta congelado en este momento."
+
+    def _bucle():
+        _raton_congelado.set()
+        try:
+            user32 = ctypes.windll.user32
+            # Posicion actual del cursor: ahi es donde se queda clavado.
+            punto = _PUNTO()
+            user32.GetCursorPos(ctypes.byref(punto))
+            x, y = punto.x, punto.y
+            fin = time.monotonic() + segundos
+            while time.monotonic() < fin:
+                user32.SetCursorPos(x, y)
+                time.sleep(0.01)
+        finally:
+            _raton_congelado.clear()
+
+    threading.Thread(target=_bucle, daemon=True).start()
+    return f"Raton congelado {segundos}s en su posicion (el teclado sigue activo)."
+
+
+# ---------------------------------------------------------------------------
+# Despacho de ordenes (lo usan tanto el servidor LAN como el modo rele)
+# ---------------------------------------------------------------------------
+def ejecutar_orden(mensaje, clave, margen):
+    """Procesa un mensaje ya deserializado y devuelve (ok, texto, extra).
+
+    'extra' es un dict con datos adicionales para la respuesta (o None).
+    Comprueba la clave de forma independiente al transporte, asi que sirve
+    igual por LAN que a traves del rele.
+    """
+    if mensaje.get("clave") != clave:
+        return False, "Clave incorrecta.", None
+
+    accion = mensaje.get("accion", "")
+    if accion == "ping":
+        return True, "Agente activo.", {"hostname": socket.gethostname()}
+    if accion == "apagar":
+        return True, accion_apagar(margen), None
+    if accion == "reiniciar":
+        return True, accion_reiniciar(margen), None
+    if accion == "suspender":
+        return True, accion_suspender(), None
+    if accion == "cancelar":
+        return True, accion_cancelar(), None
+    if accion == "congelar_raton":
+        return True, accion_congelar_raton(mensaje.get("segundos", 10)), None
+    return False, f"Accion desconocida: {accion}", None
+
+
 # ---------------------------------------------------------------------------
 # Servidor de red
 # ---------------------------------------------------------------------------
@@ -161,31 +245,10 @@ class ServidorAgente(threading.Thread):
             accion = mensaje.get("accion", "")
             self.log(f"[{ip}] Orden recibida: {accion}")
 
-            if accion == "ping":
-                self._responder(
-                    conn,
-                    True,
-                    "Agente activo.",
-                    extra={"hostname": socket.gethostname()},
-                )
-            elif accion == "apagar":
-                msg = accion_apagar(self.margen)
-                self._responder(conn, True, msg)
-                self.log(msg)
-            elif accion == "reiniciar":
-                msg = accion_reiniciar(self.margen)
-                self._responder(conn, True, msg)
-                self.log(msg)
-            elif accion == "suspender":
-                msg = accion_suspender()
-                self._responder(conn, True, msg)
-                self.log(msg)
-            elif accion == "cancelar":
-                msg = accion_cancelar()
-                self._responder(conn, True, msg)
-                self.log(msg)
-            else:
-                self._responder(conn, False, f"Accion desconocida: {accion}")
+            ok, texto, extra = ejecutar_orden(mensaje, self.clave, self.margen)
+            self._responder(conn, ok, texto, extra=extra)
+            if accion != "ping":
+                self.log(texto)
         except Exception as e:
             self.log(f"[{ip}] Error atendiendo la conexion: {e}")
         finally:

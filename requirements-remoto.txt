@@ -1,0 +1,3 @@
+# Dependencia para el modo remoto con visor de pantalla.
+# Instalar con:  pip install -r requirements-remoto.txt
+pillow>=10.0
