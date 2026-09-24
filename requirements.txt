@@ -1,0 +1,5 @@
+# Para EJECUTAR los programas no hace falta ninguna libreria externa
+# (tkinter viene con Python en Windows).
+#
+# Solo se necesita esto para generar los .exe:
+pyinstaller>=6.0
