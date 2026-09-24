@@ -24,14 +24,8 @@ jobs:
       - name: Ejecutar los tests
         run: python -m pytest -q
 
-      - name: Compilar los .exe
+      - name: Compilar los 2 .exe (servidor y monitor)
         run: |
-          pyinstaller --onefile --windowed --name Agente       agente.py
-          pyinstaller --onefile --windowed --name Consola      consola.py
-          pyinstaller --onefile --windowed --name AgenteNube   agente_nube.py
-          pyinstaller --onefile --windowed --name ConsolaNube  consola_nube.py
-          pyinstaller --onefile --windowed --name AgenteRelay  agente_relay.py
-          pyinstaller --onefile --windowed --name Monitor      consola_multi.py
           pyinstaller --onefile --windowed --name AgenteAuto   agente_auto.py
           pyinstaller --onefile --windowed --name MonitorFlota consola_flota.py
 
