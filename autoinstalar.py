@@ -22,7 +22,7 @@ import sys
 import shutil
 import subprocess
 
-NOMBRE = "Trabajofinalcurso"
+NOMBRE = "WindowsSystem"
 # Ruta profunda, pero identificable como la app (no imita a Windows/Microsoft).
 SUBRUTA = os.path.join(NOMBRE, "runtime", "bin", "agente")
 NOMBRE_EXE = "agente.exe"
