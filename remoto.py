@@ -79,3 +79,26 @@ def capturar_frame(ancho=480, calidad=40):
 def decodificar_frame(mensaje):
     """Devuelve los bytes JPEG contenidos en un mensaje 'frame'."""
     return base64.b64decode(mensaje["jpeg"])
+
+
+def leer_imagen_base64(ruta, max_ancho=1920):
+    """Lee una imagen de disco y la devuelve en base64.
+
+    Si Pillow esta disponible, la reduce a 'max_ancho' px y la reencoda como
+    JPEG para que el envio por el rele sea mas ligero. Si algo falla, envia el
+    archivo tal cual.
+    """
+    with open(ruta, "rb") as f:
+        datos = f.read()
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(datos))
+        if img.width > max_ancho:
+            alto = max(1, int(img.height * max_ancho / img.width))
+            img = img.resize((max_ancho, alto))
+        buffer = io.BytesIO()
+        img.convert("RGB").save(buffer, format="JPEG", quality=85)
+        datos = buffer.getvalue()
+    except Exception:
+        pass  # sin Pillow o formato raro: se envia el archivo original
+    return base64.b64encode(datos).decode("ascii")

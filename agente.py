@@ -157,6 +157,66 @@ def accion_congelar_raton(segundos):
     return f"Raton congelado {segundos}s en su posicion (el teclado sigue activo)."
 
 
+def _tipo_imagen(datos):
+    """Reconoce el formato por sus primeros bytes. Devuelve la extension o None."""
+    if datos.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if datos.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if datos.startswith(b"BM"):
+        return "bmp"
+    return None
+
+
+def accion_fondo_pantalla(imagen_b64):
+    """Pone la imagen recibida (en base64) como fondo de escritorio.
+
+    Guarda la imagen como BMP en ProgramData y la aplica con la API de Windows
+    (SystemParametersInfo). Solo tiene efecto en Windows y en la sesion del
+    usuario. Con Pillow la convierte a BMP; sin Pillow usa el JPG/PNG/BMP tal cual.
+    """
+    if not _es_windows():
+        return "Simulado: cambiar fondo de pantalla (no es Windows)."
+    import base64
+    import io
+    try:
+        datos = base64.b64decode(imagen_b64, validate=True)
+    except Exception:
+        return "Imagen no valida."
+
+    carpeta = os.path.join(
+        os.environ.get("ProgramData", r"C:\ProgramData"), "ControlRemotoPC"
+    )
+    os.makedirs(carpeta, exist_ok=True)
+    try:
+        from PIL import Image
+    except ImportError:
+        Image = None
+    if Image is not None:
+        ruta = os.path.join(carpeta, "fondo.bmp")
+        try:
+            Image.open(io.BytesIO(datos)).convert("RGB").save(ruta, "BMP")
+        except Exception as e:
+            return f"No se pudo procesar la imagen: {e}"
+    else:
+        # Sin Pillow: Windows 8+ acepta JPG, PNG y BMP directamente como fondo.
+        extension = _tipo_imagen(datos)
+        if extension is None:
+            return "Imagen no valida (usa JPG, PNG o BMP)."
+        ruta = os.path.join(carpeta, "fondo." + extension)
+        with open(ruta, "wb") as f:
+            f.write(datos)
+
+    SPI_SETDESKWALLPAPER = 20
+    SPIF_UPDATEINIFILE = 0x01
+    SPIF_SENDWININICHANGE = 0x02
+    ok = ctypes.windll.user32.SystemParametersInfoW(
+        SPI_SETDESKWALLPAPER, 0, ctypes.c_wchar_p(ruta),
+        SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE,
+    )
+    return "Fondo de pantalla cambiado." if ok else "Windows rechazo el cambio de fondo."
+
+
 # ---------------------------------------------------------------------------
 # Despacho de ordenes (lo usan tanto el servidor LAN como el modo rele)
 # ---------------------------------------------------------------------------

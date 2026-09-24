@@ -41,6 +41,8 @@ CLAVE_POR_DEFECTO = "cambia-esta-clave-2026"
 LONGITUD_MINIMA_CLAVE = 8
 VENTANA_SEGUNDOS = 300             # antiguedad maxima aceptada de un mensaje
 MAX_BYTES_FRAME = 350_000          # por encima se reduce el tamano del visor
+TAM_TROZO = 150_000                # los archivos grandes (fondo) van en trozos
+MAX_BYTES_ARCHIVO = 15_000_000     # tamano maximo de un archivo enviado
 
 HACIA_AGENTE = b"a"
 HACIA_CONSOLA = b"c"

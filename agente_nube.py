@@ -5,6 +5,7 @@ Se conecta (conexion saliente) a un broker MQTT publico y gratuito y atiende:
   - Las mismas ordenes que en LAN (apagar, suspender, reiniciar, cancelar,
     congelar raton, ping), reutilizando agente.ejecutar_orden.
   - El visor de pantalla en vivo (miniaturas PNG/JPEG).
+  - Poner de fondo de pantalla una imagen enviada desde la consola.
 
 No necesita instalar nada: solo Python (o el .exe que genera GitHub Actions).
 Debe correr en la SESION DEL USUARIO (no como servicio), porque el visor y
@@ -93,6 +94,7 @@ class AgenteNube:
         self._visor = {"hasta": 0.0, "fps": 3, "ancho": 480, "formatos": ["png"]}
         self._visor_activo = False
         self._lock_visor = threading.Lock()
+        self._trozos = {}        # id de envio -> {"n": total, "partes": {i: texto}, "t": hora}
 
     # -- bucle principal (se reconecta solo) --------------------------------
     def run(self):
@@ -148,6 +150,9 @@ class AgenteNube:
         if msg.get("tipo") == "ver":
             self._config_visor(msg)
             return
+        if msg.get("tipo") == "fondo_parte":
+            self._recibir_trozo_fondo(msg)
+            return
         # Las ordenes se ejecutan en otro hilo para no bloquear la lectura.
         threading.Thread(target=self._orden, args=(msg,), daemon=True).start()
 
@@ -164,6 +169,39 @@ class AgenteNube:
             pass
         if msg.get("accion") != "ping":
             self.log(f"Orden '{msg.get('accion')}' -> {texto}")
+
+    # -- fondo de pantalla (la imagen llega en trozos) -----------------------
+    def _recibir_trozo_fondo(self, msg):
+        ahora = time.time()
+        # Olvida envios a medias de hace mas de 2 minutos (se perdio algun trozo).
+        for viejo in [k for k, v in self._trozos.items() if ahora - v["t"] > 120]:
+            del self._trozos[viejo]
+        try:
+            ident, i, n = str(msg["id"]), int(msg["i"]), int(msg["n"])
+            datos = str(msg["datos"])
+        except (KeyError, ValueError, TypeError):
+            return
+        if not 0 <= i < n or n * nube.TAM_TROZO > nube.MAX_BYTES_ARCHIVO * 4 // 3 + nube.TAM_TROZO:
+            return
+        envio = self._trozos.setdefault(ident, {"n": n, "partes": {}, "t": ahora})
+        envio["partes"][i] = datos
+        envio["t"] = ahora
+        if len(envio["partes"]) < envio["n"]:
+            return
+        del self._trozos[ident]
+        imagen_b64 = "".join(envio["partes"][k] for k in range(envio["n"]))
+        threading.Thread(target=self._aplicar_fondo, args=(ident, imagen_b64),
+                         daemon=True).start()
+
+    def _aplicar_fondo(self, ident, imagen_b64):
+        texto = agente.accion_fondo_pantalla(imagen_b64)
+        ok = "cambiado" in texto.lower() or texto.startswith("Simulado")
+        self.log(f"Fondo de pantalla -> {texto}")
+        try:
+            self._responder({"tipo": "respuesta", "ok": ok, "mensaje": texto,
+                             "id": ident, "accion": "fondo"})
+        except OSError:
+            pass
 
     # -- visor --------------------------------------------------------------
     def _config_visor(self, msg):

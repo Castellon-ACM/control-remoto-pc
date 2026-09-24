@@ -5,6 +5,8 @@ Esto añade dos cosas:
 1. **Funcionar entre ciudades instalando solo las dos aplicaciones**, sin tocar
    el router de ninguna de las dos casas, mediante un **relé** (rendezvous).
 2. **Ver la pantalla del equipo remoto en vivo**, en una **miniatura**.
+3. **Poner una imagen (que subes desde la Consola) como fondo de
+   pantalla del equipo remoto**, al estilo de tocar el escritorio con AnyDesk.
 
 Todo esto está probado de punta a punta (relé + agente + consola en local):
 `test_remoto.py`, `test_relay.py`, `test_remoto_e2e.py`.
@@ -133,7 +135,7 @@ solo, ver la pantalla y controlar entre ciudades), usa **agente_relay.py** +
 pip install pytest
 python -m pytest -v
 ```
-Son 41 pruebas. Las del modo remoto levantan el relé, el agente-relé y el cliente
+Son 60 pruebas (incluidas las del modo nube, ver MODO-NUBE.md). Las del modo remoto levantan el relé, el agente-relé y el cliente
 de consola en localhost y comprueban: *framing*, emparejamiento del relé (en los
 dos órdenes de llegada), rechazo de un segundo cliente, órdenes por el relé
 (ping, apagar con Windows simulado, congelar, clave incorrecta) y el **streaming

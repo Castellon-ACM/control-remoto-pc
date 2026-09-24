@@ -113,6 +113,12 @@ class AgenteRelay:
             self._config_streaming(msg)
             return
 
+        if msg.get("tipo") == "fondo":
+            texto = agente.accion_fondo_pantalla(msg.get("imagen", ""))
+            self._enviar({"tipo": "respuesta", "ok": True, "mensaje": texto})
+            self.log(f"Fondo de pantalla -> {texto}")
+            return
+
         # Por defecto es una orden (mismo formato que en LAN).
         ok, texto, extra = agente.ejecutar_orden(msg, self.clave, self.margen)
         respuesta = {"tipo": "respuesta", "ok": ok, "mensaje": texto}

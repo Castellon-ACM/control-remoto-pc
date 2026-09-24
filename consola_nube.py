@@ -104,6 +104,22 @@ class ClienteConsolaNube:
             obj.update(extra)
         self._enviar(obj)
 
+    def enviar_fondo(self, imagen_b64):
+        """Envia una imagen (base64) para ponerla de fondo en el equipo remoto.
+
+        El broker publico limita el tamano de cada mensaje, asi que la imagen
+        se parte en trozos cifrados que el agente vuelve a juntar."""
+        if len(imagen_b64) * 3 // 4 > nube.MAX_BYTES_ARCHIVO:
+            raise ValueError("La imagen es demasiado grande (maximo 15 MB).")
+        ident = os.urandom(4).hex()
+        trozos = [imagen_b64[i:i + nube.TAM_TROZO]
+                  for i in range(0, len(imagen_b64), nube.TAM_TROZO)] or [""]
+        for i, datos in enumerate(trozos):
+            self._enviar({"tipo": "fondo_parte", "id": ident, "i": i,
+                          "n": len(trozos), "datos": datos})
+            time.sleep(0.05)   # no saturar el broker
+        return ident
+
     def ver_pantalla(self, activar=True, fps=3, ancho=480, formatos=("png",)):
         if activar:
             self._visor = {"tipo": "ver", "activar": True, "fps": min(int(fps), 4),

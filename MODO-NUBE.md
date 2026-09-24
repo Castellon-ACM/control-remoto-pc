@@ -12,6 +12,13 @@ Los dos equipos abren una conexión **saliente** hacia un broker MQTT público y
 
 Todo está hecho con la librería estándar de Python (`socket`, `ssl`, `hashlib`, `hmac`, `zlib`, `ctypes`). El visor de pantalla funciona también sin Pillow: captura la pantalla con la API de Windows y genera un PNG que Tk muestra directamente. Si tienes Pillow instalado, usa JPEG, que ocupa menos y se ve mejor.
 
+## Fondo de pantalla remoto
+
+Con «Poner fondo de pantalla…» eliges una imagen en la consola y el otro PC la pone como fondo de escritorio, algo parecido a lo que haces con AnyDesk en el escritorio del otro equipo. El broker público limita el tamaño de cada mensaje, así que la imagen viaja partida en trozos de 150 KB, cada uno cifrado y firmado, y el agente la reconstruye. Después la aplica con la API de Windows (`SystemParametersInfoW`, `SPI_SETDESKWALLPAPER`).
+
+- Con Pillow, la consola reduce la imagen a 1920 px y el agente la convierte a BMP.
+- Sin Pillow, se envía el archivo tal cual (máximo 15 MB) y Windows usa directamente el JPG, PNG o BMP. El agente comprueba por los primeros bytes que de verdad es una imagen y rechaza cualquier otra cosa.
+
 ## Seguridad (el broker es público)
 
 Cualquiera puede conectarse al broker, así que el programa no se fía de él:
@@ -32,7 +39,7 @@ GitHub Actions compila `AgenteNube.exe` y `ConsolaNube.exe` en cada push (pesta�
 
 1. **PC controlado (Barcelona):** abre `AgenteNube.exe`. En la ventana pon una **sala** y una **clave** tuyas y pulsa *Guardar y conectar*. Tiene que aparecer «Conectado a broker.emqx.io».
 2. **PC que controla (Madrid):** abre `ConsolaNube.exe`, escribe la misma sala y la misma clave y pulsa *Conectar*. A los pocos segundos verás «Equipo en línea: NOMBRE-PC».
-3. Usa los botones (apagar, suspender, reiniciar, cancelar, congelar ratón) o marca «Ver pantalla en vivo».
+3. Usa los botones (apagar, suspender, reiniciar, cancelar, congelar ratón, «Poner fondo de pantalla…») o marca «Ver pantalla en vivo».
 
 Para que el agente arranque solo: pulsa `Win + R`, escribe `shell:startup` y pega ahí un acceso directo a `AgenteNube.exe`.
 

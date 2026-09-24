@@ -80,6 +80,13 @@ class ClienteConsolaRelay:
                 "activar": bool(activar), "fps": int(fps), "ancho": int(ancho),
             })
 
+    def enviar_fondo(self, imagen_b64):
+        """Envia una imagen (base64) para ponerla de fondo en el equipo remoto."""
+        with self._enviar_lock:
+            remoto.enviar_mensaje(self._sock, {
+                "tipo": "fondo", "clave": self.clave, "imagen": imagen_b64,
+            })
+
     def cerrar(self):
         self._parar.set()
         try:
@@ -158,6 +165,8 @@ def _lanzar_ventana(cliente_cls=None, titulo="Consola Remota (rele) + Visor",
             self.e_seg.pack(side="left", padx=6)
             tk.Button(rat, text="Congelar raton", bg="#4527a0", fg="white",
                       command=self._congelar).pack(side="left")
+            tk.Button(rat, text="Poner fondo de pantalla...", bg="#00695c", fg="white",
+                      command=self._fondo).pack(side="left", padx=8)
 
             # Visor
             vis = tk.Frame(root)
@@ -229,6 +238,27 @@ def _lanzar_ventana(cliente_cls=None, titulo="Consola Remota (rele) + Visor",
                 messagebox.showwarning("Dato no valido", "Pon un numero de segundos > 0.")
                 return
             self._orden("congelar_raton", extra={"segundos": int(texto)})
+
+        def _fondo(self):
+            if not self.cliente:
+                messagebox.showinfo("Sin conexion", "Primero conecta.")
+                return
+            from tkinter import filedialog
+            ruta = filedialog.askopenfilename(
+                title="Elige una imagen para el fondo del equipo remoto",
+                filetypes=[("Imagenes", "*.png *.jpg *.jpeg *.bmp *.gif"),
+                           ("Todos los archivos", "*.*")],
+            )
+            if not ruta:
+                return
+            def _enviar():
+                try:
+                    imagen_b64 = remoto.leer_imagen_base64(ruta)
+                    self.cliente.enviar_fondo(imagen_b64)
+                except (OSError, ValueError) as e:
+                    self.root.after(0, lambda: messagebox.showerror("Error", str(e)))
+            # En otro hilo: una imagen grande tarda en enviarse y no debe congelar la ventana.
+            threading.Thread(target=_enviar, daemon=True).start()
 
         def _respuesta_recibida(self, msg):
             def _ui():
