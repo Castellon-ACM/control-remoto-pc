@@ -19,6 +19,7 @@ import json
 import subprocess
 import platform
 import os
+import sys
 import time
 import ctypes
 import configparser
@@ -32,7 +33,10 @@ from tkinter import scrolledtext
 # ---------------------------------------------------------------------------
 # La clave y el puerto se guardan en "config.ini" junto al programa.
 # Si no existe, se crea con valores por defecto la primera vez.
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.ini")
+# Si es un .exe (PyInstaller), junto al .exe; si no, junto a este archivo.
+_BASE = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+         else os.path.dirname(os.path.abspath(__file__)))
+CONFIG_FILE = os.path.join(_BASE, "config.ini")
 
 DEFAULTS = {
     "puerto": "50505",

@@ -91,10 +91,23 @@ class ClienteConsolaRelay:
 # ---------------------------------------------------------------------------
 # Ventana (interfaz grafica)
 # ---------------------------------------------------------------------------
-def _lanzar_ventana():
+def _lanzar_ventana(cliente_cls=None, titulo="Consola Remota (rele) + Visor",
+                    cabecera="  CONSOLA REMOTA (rele)", etiqueta_host="Rele (host):",
+                    host="mi-rele.ejemplo.com", puerto=None, sala="casa-2026",
+                    color="#0d47a1"):
+    """Dibuja la consola. La usan el modo rele y el modo nube (consola_nube.py):
+    solo cambia la clase de cliente de red y los valores por defecto."""
+    import base64
     import tkinter as tk
     from tkinter import messagebox
-    from PIL import Image, ImageTk
+    try:
+        from PIL import Image, ImageTk   # opcional: sin Pillow se muestran PNG con Tk
+    except ImportError:
+        Image = ImageTk = None
+
+    cliente_cls = cliente_cls or ClienteConsolaRelay
+    if puerto is None:
+        puerto = remoto.PUERTO_RELE_POR_DEFECTO
 
     ANCHO_MINIATURA = 480  # px de la vista en miniatura
 
@@ -104,20 +117,20 @@ def _lanzar_ventana():
             self.cliente = None
             self._imgtk = None  # referencia viva para que Tk no la borre
 
-            root.title("Consola Remota (rele) + Visor")
+            root.title(titulo)
             root.geometry("560x640")
 
-            cab = tk.Frame(root, bg="#0d47a1")
+            cab = tk.Frame(root, bg=color)
             cab.pack(fill="x")
-            tk.Label(cab, text="  CONSOLA REMOTA (rele)", bg="#0d47a1", fg="white",
+            tk.Label(cab, text=cabecera, bg=color, fg="white",
                      font=("Segoe UI", 14, "bold"), anchor="w").pack(fill="x", padx=8, pady=10)
 
             # Datos de conexion
             form = tk.Frame(root)
             form.pack(fill="x", padx=12, pady=8)
-            self.e_host = self._campo(form, "Rele (host):", 0, "mi-rele.ejemplo.com")
-            self.e_puerto = self._campo(form, "Puerto:", 1, str(remoto.PUERTO_RELE_POR_DEFECTO))
-            self.e_sala = self._campo(form, "Sala:", 2, "casa-2026")
+            self.e_host = self._campo(form, etiqueta_host, 0, host)
+            self.e_puerto = self._campo(form, "Puerto:", 1, str(puerto))
+            self.e_sala = self._campo(form, "Sala:", 2, sala)
             self.e_clave = self._campo(form, "Clave:", 3, "cambia-esta-clave-2026", oculto=True)
             self.b_conectar = tk.Button(form, text="Conectar", command=self.conectar)
             self.b_conectar.grid(row=4, column=1, sticky="w", pady=6)
@@ -169,7 +182,7 @@ def _lanzar_ventana():
         def conectar(self):
             if self.cliente:
                 self.cliente.cerrar()
-            self.cliente = ClienteConsolaRelay(
+            self.cliente = cliente_cls(
                 self.e_host.get().strip(), self.e_puerto.get().strip(),
                 self.e_sala.get().strip(), self.e_clave.get(),
             )
@@ -178,13 +191,21 @@ def _lanzar_ventana():
             self.cliente.on_estado = self._estado_cambiado
             try:
                 self.cliente.conectar()
-            except OSError as e:
-                messagebox.showerror("Error", f"No se pudo conectar al rele: {e}")
+            except (OSError, ValueError) as e:
+                messagebox.showerror("Error", f"No se pudo conectar: {e}")
 
         def _estado_cambiado(self, estado):
             def _ui():
                 if estado == "conectado":
                     self.lbl_estado.configure(text="Conectado", fg="#1b5e20")
+                elif estado.startswith("en_linea"):
+                    nombre = estado.partition(":")[2]
+                    self.lbl_estado.configure(
+                        text=f"Equipo en linea: {nombre}" if nombre else "Equipo en linea",
+                        fg="#1b5e20")
+                elif estado == "esperando":
+                    self.lbl_estado.configure(text="Conectado, esperando al equipo...",
+                                              fg="#e65100")
                 else:
                     self.lbl_estado.configure(text="Desconectado", fg="#b71c1c")
             self.root.after(0, _ui)
@@ -223,16 +244,25 @@ def _lanzar_ventana():
                 messagebox.showinfo("Sin conexion", "Primero conecta al rele.")
                 self.var_ver.set(0)
                 return
+            kwargs = {}
+            if getattr(self.cliente, "ACEPTA_FORMATOS", False):
+                kwargs["formatos"] = ["jpeg", "png"] if ImageTk is not None else ["png"]
             self.cliente.ver_pantalla(
-                activar=bool(self.var_ver.get()), fps=6, ancho=ANCHO_MINIATURA
+                activar=bool(self.var_ver.get()), fps=6, ancho=ANCHO_MINIATURA, **kwargs
             )
 
         def _frame_recibido(self, msg):
-            jpeg = remoto.decodificar_frame(msg)
+            fmt = msg.get("fmt", "jpeg")
+            datos = base64.b64decode(msg.get("img") or msg.get("jpeg"))
 
             def _ui():
-                img = Image.open(io.BytesIO(jpeg))
-                self._imgtk = ImageTk.PhotoImage(img)
+                if ImageTk is not None:
+                    self._imgtk = ImageTk.PhotoImage(Image.open(io.BytesIO(datos)))
+                elif fmt == "png":
+                    self._imgtk = tk.PhotoImage(data=base64.b64encode(datos))
+                else:
+                    self.lbl_pantalla.configure(text="Instala Pillow para ver JPEG")
+                    return
                 self.lbl_pantalla.configure(image=self._imgtk, text="")
             self.root.after(0, _ui)
 
